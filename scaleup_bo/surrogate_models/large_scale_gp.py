@@ -1,5 +1,6 @@
 import numpy as np
-# from scipy.linalg import cholesky, cho_solve
+from scipy.linalg import cholesky, cho_solve
+from scipy.optimize import minimize
 from .base import BaseSurrogateModel
 
 class LargeScaleGaussianProcess(BaseSurrogateModel):
@@ -35,6 +36,18 @@ class LargeScaleGaussianProcess(BaseSurrogateModel):
         - y_train_L: Training targets for the production system.
 
         """
+        if not (X_train_S.ndim == 2 or X_train_L.ndim == 2):
+            raise ValueError("X_train must be a 2D array.")
+    
+        if not (y_train_S.ndim == 1 or y_train_L.ndim == 1):
+            raise ValueError("y_train must be a 1D array.")
+        
+        if len(X_train_S) != len(y_train_S):
+            raise ValueError("Number of samples in X_train must be equal.")
+        
+        if len(X_train_L) != len(y_train_L):
+            raise ValueError("Number of samples in X_train must be equal.")
+
         self.X_train_S = X_train_S
         self.y_train_S = y_train_S
         self.X_train_L = X_train_L
@@ -50,8 +63,8 @@ class LargeScaleGaussianProcess(BaseSurrogateModel):
         self.K_SL = self.kernel(X_train_S, X_train_L)
 
         # Combined matrix A
-        upper_left = lambda_S ** 2 * self.K_S + self.sigma_S ** 2 * np.eye(len(X_train_S))
-        lower_right = (lambda_S ** 2 + lambda_delta ** 2) * self.K_L + self.sigma_L ** 2 * np.eye(len(X_train_L))
+        upper_left = self.lambda_S ** 2 * self.K_S + self.sigma_S ** 2 * np.eye(len(X_train_S))
+        lower_right = (self.lambda_S ** 2 + self.lambda_delta ** 2) * self.K_L + self.sigma_L ** 2 * np.eye(len(X_train_L))
         upper_right = self.K_SL
         lower_left = self.K_SL.T
 
@@ -99,6 +112,11 @@ class LargeScaleGaussianProcess(BaseSurrogateModel):
             return y_mean
 
     def update_sigma_with_new_sample(self, X_new, y_new):
+        """
+        This method predicts the outputs for the new input samples, 
+        calculates the residuals between the predicted and actual outputs, 
+        and updates the noise variance (sigma_L) based on these residuals.
+        """
         # Predict new samples
         y_pred, _ = self.predict(X_new, return_std=True)
         # Calculate residuals correctly
@@ -130,7 +148,7 @@ class LargeScaleGaussianProcess(BaseSurrogateModel):
         - Negative log marginal likelihood.
         """
         length_scale = params[0]
-        self.kernel = RBF(length_scale=length_scale)
+        self.kernel.length_scale = length_scale
 
         self._update_kernel_matrices()
 

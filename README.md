@@ -12,7 +12,6 @@ Key features:
 - Customizable search space for hyperparameter optimization.
 - Scalability to handle both experimental and production systems.
 
-
 ## Installation
 
 ### scaleup_optimizer_libs requires

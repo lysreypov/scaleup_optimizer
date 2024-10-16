@@ -5,7 +5,7 @@ class UpperConfidenceBound(BaseAcquisitionFunction):
     def __init__(self, kappa=2.0):
         self.kappa = kappa
 
-    def evaluation(self, X, X_sample, Y_sample, model):
+    def evaluation(self, X, Y_sample, model):
         """
         Computes upper confidence bound acquisition function.
         """

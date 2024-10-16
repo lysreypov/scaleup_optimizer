@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.stats import norm
 from scipy.optimize import minimize
 from .base import BaseOptimizer
 from ..acquisition_functions import ExpectedImprovement, ProbabilityOfImprovement, UpperConfidenceBound
@@ -9,15 +8,15 @@ from ..scale import Scale
 from ..utils import initialize_random_samples, ensure_scalar
 
 class SmallScaleBayesianOptimizer(BaseOptimizer):
-    def __init__(self, objective_func, search_space, acq_func='EI', gp=None, n_calls=10, n_initial_points=1):
+    def __init__(self, objective_func, search_space, acq_func='EI', gp=None, n_steps=10, n_initial_points=1):
         self.objective_func = objective_func
         self.search_space = search_space
         self.acq_func_type = acq_func
         self.acq_func = None
-        self.n_calls = n_calls
+        self.n_steps = n_steps
         self.n_initial_points = n_initial_points
-        self.X_sample = None
-        self.Y_sample = None
+        self.X_iters = None
+        self.Y_iters = None
         self.best_params = None
         self.best_score = float('inf')
         self.gp = None
@@ -61,7 +60,7 @@ class SmallScaleBayesianOptimizer(BaseOptimizer):
             else:
                 raise ValueError("Invalid acquisition function: {}".format(self.acq_func))
 
-            acquisition_value = self.acq_func.evaluation(X.reshape(1, -1), self.X_sample, self.Y_sample, self.gp)
+            acquisition_value = self.acq_func.evaluation(X.reshape(1, -1), self.Y_iters, self.gp)
 
             return -acquisition_value 
 
@@ -90,16 +89,16 @@ class SmallScaleBayesianOptimizer(BaseOptimizer):
             None: Updates the best parameters and their corresponding score.
         """
         # Initialize with random samples
-        self.X_sample = initialize_random_samples(self.n_initial_points, self.search_space)
-        self.Y_sample = np.array([self.objective_func(x) for x in self.X_sample])
+        self.X_iters = initialize_random_samples(self.n_initial_points, self.search_space)
+        self.Y_iters = np.array([self.objective_func(x) for x in self.X_iters])
 
         # Normalize initial samples
-        X_sample_norm = self.scale.normalize(self.X_sample)
+        X_iters_norm = self.scale.normalize(self.X_iters)
 
         # Train the initial Gaussian Process model
-        self.gp.fit(X_sample_norm, self.Y_sample)
+        self.gp.fit(X_iters_norm, self.Y_iters)
 
-        for _ in range(self.n_calls):
+        for _ in range(self.n_steps):
             X_next_norm = self.propose_next_point()
 
             X_next = self.scale.denormalize(X_next_norm.reshape(1, -1)).flatten()
@@ -107,18 +106,18 @@ class SmallScaleBayesianOptimizer(BaseOptimizer):
             # Evaluate the objective function at the next point
             Y_next = ensure_scalar(self.objective_func(X_next))
 
-            self.X_sample = np.vstack((self.X_sample, X_next))
-            self.Y_sample = np.append(self.Y_sample, Y_next)
+            self.X_iters = np.vstack((self.X_iters, X_next))
+            self.Y_iters = np.append(self.Y_iters, Y_next)
 
-            X_sample_norm = self.scale.normalize(self.X_sample)
+            X_iters_norm = self.scale.normalize(self.X_iters)
 
             # Optimize the hyperparameters of the Gaussian Process (length scale)
             self.gp.optimize_hyperparameters()
 
             # Update the GP model
-            self.gp.fit(X_sample_norm, self.Y_sample)
+            self.gp.fit(X_iters_norm, self.Y_iters)
 
-        best_index = np.argmin(self.Y_sample)
-        self.best_params = self.X_sample[best_index].tolist()
-        self.best_score = self.Y_sample[best_index]
+        best_index = np.argmin(self.Y_iters)
+        self.best_params = self.X_iters[best_index].tolist()
+        self.best_score = self.Y_iters[best_index]
 

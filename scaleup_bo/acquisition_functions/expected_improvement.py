@@ -1,11 +1,12 @@
 import numpy as np
+from scipy.stats import norm
 from .base import BaseAcquisitionFunction
 
 class ExpectedImprovement(BaseAcquisitionFunction):
     def __init__(self, xi=0.1):
         self.xi = xi
 
-    def evaluation(self, X, X_sample, Y_sample, model):
+    def evaluation(self, X, Y_sample, model):
         """
         Computes the Expected Improvement acquisition function.
         """

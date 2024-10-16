@@ -1,3 +1,4 @@
+import numpy as np
 from scipy.linalg import cholesky, cho_solve
 from scipy.optimize import minimize
 from .base import BaseSurrogateModel
